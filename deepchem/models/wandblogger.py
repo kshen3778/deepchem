@@ -3,7 +3,7 @@ import copy
 import logging
 import importlib.util
 from typing import List, Optional, Union
-from deepchem.data import Dataset
+from deepchem.data import Dataset, NumpyDataset, DiskDataset, ImageDataset
 from deepchem.metrics import Metric
 from deepchem.models.callbacks import ValidationCallback
 
@@ -41,6 +41,7 @@ class WandbLogger(object):
                resume: Optional[Union[bool, str]] = None,
                anonymous: Optional[str] = "never",
                log_model: Optional[bool] = False,
+               checkpoint_strategy: Optional[str] = None, #"step", "epoch", "best" if step use checkpoint_interval
                log_dataset: Optional[bool] = False,
                save_run_history: Optional[bool] = False,
                **kwargs):
@@ -128,6 +129,36 @@ class WandbLogger(object):
     """
     self.wandb_run = self._wandb.init(**self.wandb_init_params)
     self.initialized = True
+    if self.initialized and self.log_dataset:
+      self.log_dataset()
+
+  def log_dataset(self):
+    dataset_artifacts = [self._wandb.Artifact(ds, type="dataset") for ds in self.datasets]
+    if isinstance(self.datasets["train"], NumpyDataset) and isinstance(self.datasets["eval"], NumpyDataset):
+      for ds in self.datasets:
+        df = self.datasets[ds].to_dataframe()
+        table = self._wandb.Table(data=df, columns=df.columns)
+        dataset_artifacts[ds].add(table, name=ds + "_dataset")
+    elif isinstance(self.datasets["train"], DiskDataset) and isinstance(self.datasets["eval"], DiskDataset):
+      for ds in self.datasets:
+        dir = self.datasets[ds].data_dir
+        metadata = self.datasets[ds].metadata_df
+        metadata_table = self._wandb.Table(data=metadata, columns=metadata.columns)
+        dataset_artifacts[ds].add_dir(dir, name=ds + "_dataset")
+        dataset_artifacts[ds].metadata(metadata_table.to_dict())
+    elif isinstance(self.datasets["train"], DiskDataset) and isinstance(self.datasets["eval"], DiskDataset):
+      for ds in self.datasets:
+        df = self.datasets[ds].to_dataframe()
+        table = self._wandb.Table(data=df, columns=df.columns)
+        dataset_artifacts[ds].add(table, name=ds + "_dataset")
+    else:
+      logger.warning(
+          "Warning: Cannot save datasets. "
+          "Either 'train_dataset' or 'eval_dataset' is not an instance of deepchem.data.Dataset")
+
+    for artifact in dataset_artifacts:
+      self.wandb_run.log_artifact(artifact)
+
 
   def check_other_loggers(self, callbacks):
     """Check for different callbacks and warn for redundant logging behaviour.
