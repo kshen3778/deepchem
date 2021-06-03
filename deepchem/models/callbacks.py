@@ -6,12 +6,10 @@ import sys
 
 class ValidationCallback(object):
   """Performs validation while training a KerasModel.
-
   This is a callback that can be passed to fit().  It periodically computes a
   set of metrics over a validation set and writes them to a file.  In addition,
   it can save the best model parameters found so far to a directory on disk,
   updating them every time it finds a new best validation score.
-
   If Tensorboard logging is enabled on the KerasModel, the metrics are also
   logged to Tensorboard.  This only happens when validation coincides with a
   step on which the model writes to the log.  You should therefore make sure
@@ -28,7 +26,6 @@ class ValidationCallback(object):
                save_metric=0,
                save_on_minimum=True):
     """Create a ValidationCallback.
-
     Parameters
     ----------
     dataset: dc.data.Dataset
@@ -61,7 +58,6 @@ class ValidationCallback(object):
 
   def __call__(self, model, step):
     """This is invoked by the KerasModel after every step of fitting.
-
     Parameters
     ----------
     model: KerasModel
@@ -80,6 +76,9 @@ class ValidationCallback(object):
       for key in scores:
         model._log_scalar_to_tensorboard(key, scores[key],
                                          model.get_global_step())
+    if model.wandb:
+      import wandb
+      wandb.log(scores, step=step)
     if self.save_dir is not None:
       score = scores[self.metrics[self.save_metric].name]
       if not self.save_on_minimum:
