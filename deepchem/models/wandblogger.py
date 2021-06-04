@@ -108,9 +108,13 @@ class WandbLogger(object):
     self.logging_strategy = logging_strategy
 
     self.log_model = log_model
+    self.checkpoint_strategy = checkpoint_strategy
     self.log_dataset = log_dataset
     self.save_dir = save_dir
     self.save_run_history = save_run_history
+
+    self.dataset_artifacts = [self._wandb.Artifact(ds, type="dataset") for ds in self.datasets]
+    #self.model_artifacts = self._wandb.Artifact("model", type="model")
 
     # set wandb init arguments
     self.wandb_init_params = dict(name=name,
@@ -137,30 +141,29 @@ class WandbLogger(object):
       self.log_dataset()
 
   def log_dataset(self):
-    dataset_artifacts = [self._wandb.Artifact(ds, type="dataset") for ds in self.datasets]
     if isinstance(self.datasets["train"], NumpyDataset) and isinstance(self.datasets["eval"], NumpyDataset):
       for ds in self.datasets:
         df = self.datasets[ds].to_dataframe()
         table = self._wandb.Table(data=df, columns=df.columns)
-        dataset_artifacts[ds].add(table, name=ds + "_dataset")
+        self.dataset_artifacts[ds].add(table, name=ds + "_dataset")
     elif isinstance(self.datasets["train"], DiskDataset) and isinstance(self.datasets["eval"], DiskDataset):
       for ds in self.datasets:
         dir = self.datasets[ds].data_dir
         metadata = self.datasets[ds].metadata_df
         metadata_table = self._wandb.Table(data=metadata, columns=metadata.columns)
-        dataset_artifacts[ds].add_dir(dir, name=ds + "_dataset")
-        dataset_artifacts[ds].metadata(metadata_table.to_dict())
+        self.dataset_artifacts[ds].add_dir(dir, name=ds + "_dataset")
+        self.dataset_artifacts[ds].metadata(metadata_table.to_dict())
     elif isinstance(self.datasets["train"], DiskDataset) and isinstance(self.datasets["eval"], DiskDataset):
       for ds in self.datasets:
         df = self.datasets[ds].to_dataframe()
         table = self._wandb.Table(data=df, columns=df.columns)
-        dataset_artifacts[ds].add(table, name=ds + "_dataset")
+        self.dataset_artifacts[ds].add(table, name=ds + "_dataset")
     else:
       logger.warning(
           "Warning: Cannot save datasets. "
           "Either 'train_dataset' or 'eval_dataset' is not an instance of deepchem.data.Dataset")
 
-    for artifact in dataset_artifacts:
+    for artifact in self.dataset_artifacts:
       self.wandb_run.log_artifact(artifact)
 
 
@@ -237,6 +240,11 @@ class WandbLogger(object):
           all_data.update(scores)
 
     self.wandb_run.log(all_data, step=step)
+
+    # Checkpointing and save model
+    if self.checkpoint_strategy == "step" and step % self.wandb_run.config.checkpoint_interval == 0:
+      self.wandb_run.save()
+
 
   def finish(self):
     """Finishes and closes the W&B run.

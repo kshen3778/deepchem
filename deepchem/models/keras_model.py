@@ -426,8 +426,11 @@ class KerasModel(Model):
     # Main training loop.
 
     # Warn if both ValidationCallback and WandbLogger present
+    # Set checkpoint interval parameter
     if self.wandb_logger is not None:
       self.wandb_logger.check_other_loggers(callbacks)
+      self.wandb_logger.update_config({"checkpoint_interval": checkpoint_interval})
+
 
     for batch in generator:
       self._create_training_ops(batch)
