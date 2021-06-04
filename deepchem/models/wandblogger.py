@@ -153,7 +153,7 @@ class WandbLogger(object):
         metadata_table = self._wandb.Table(data=metadata, columns=metadata.columns)
         self.dataset_artifacts[ds].add_dir(dir, name=ds + "_dataset")
         self.dataset_artifacts[ds].metadata(metadata_table.to_dict())
-    elif isinstance(self.datasets["train"], DiskDataset) and isinstance(self.datasets["eval"], DiskDataset):
+    elif isinstance(self.datasets["train"], ImageDataset) and isinstance(self.datasets["eval"], ImageDataset):
       for ds in self.datasets:
         df = self.datasets[ds].to_dataframe()
         table = self._wandb.Table(data=df, columns=df.columns)
